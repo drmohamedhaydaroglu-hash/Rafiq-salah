@@ -57,11 +57,28 @@
         <div id="qadaSetup" class="panel setup-panel">
           <div class="panel-title"><span class="panel-icon">✧</span><div><h2>إعداد حساب القضاء</h2><p>ابدأ بتاريخ بداية وجوب الصلاة عليك.</p></div></div>
           <form id="qadaSetupForm" class="form-grid">
-            <label class="field full"><span>تاريخ بداية التكليف (البلوغ)</span><input id="bulughDate" type="date" required /></label>
-            <label class="field"><span>أيام العذر الشرعي خلال هذه الفترة</span><input id="excusedDays" type="number" min="0" value="0" inputmode="numeric" /></label>
-            <label class="field"><span>أيام أديت فيها الصلوات الخمس كاملة</span><input id="fullPrayerDays" type="number" min="0" value="0" inputmode="numeric" /></label>
-            <div class="field full info-box"><strong>ملاحظة مهمة</strong><span>هذا تقدير حسابي أولي، وليس فتوى. بعد الحساب تستطيع تعديل عدد كل صلاة على حدة بحسب ما تتذكره، والعذر الشرعي، والفترات التي كنت تصلي فيها. اسأل عالمًا موثوقًا عن حكم القضاء في حالتك.</span></div>
-            <button class="primary-button full" type="submit">احسب تقديري</button>
+            <label class="field full"><span>تاريخ ميلادك</span><input id="birthDate" type="date" required /></label>
+            <label class="field full"><span>الجنس</span><select id="qadaGender" required><option value="male" selected>ذكر</option><option value="female">أنثى</option></select></label>
+            <label class="field full"><span>العمر التقريبي عند البلوغ</span><select id="bulughAge" required><option value="9">9 سنوات</option><option value="10">10 سنوات</option><option value="11">11 سنة</option><option value="12">12 سنة</option><option value="13" selected>13 سنة</option><option value="14">14 سنة</option><option value="15">15 سنة</option><option value="16">16 سنة</option><option value="17">17 سنة</option><option value="18">18 سنة</option><option value="unknown">لا أتذكر — استخدم 15 سنة كتقدير</option></select></label>
+            <div id="femaleCycleFields" class="field full cycle-estimate-panel" hidden>
+              <strong>تقدير أيام الحيض (قابل للتعديل)</strong>
+              <p>سنستخدم افتراضًا مبدئيًا فقط: دورة كل 28 يومًا وحيض مدته 7 أيام. يمكنك تغيير الرقمين ليتناسبا أكثر مع حالتك.</p>
+              <div class="cycle-inputs">
+                <label class="field"><span>طول الدورة (بالأيام)</span><input id="cycleLength" type="number" min="15" max="90" step="1" value="28" inputmode="numeric" /></label>
+                <label class="field"><span>مدة الحيض (بالأيام)</span><input id="periodLength" type="number" min="1" max="20" step="1" value="7" inputmode="numeric" /></label>
+              </div>
+              <div class="cycle-preview" id="cycleEstimatePreview">سيظهر هنا تقدير أيام العذر بعد إدخال البيانات.</div>
+              <small>هذا نموذج حسابي مبسّط وليس وصفًا لدورة كل امرأة أو حكمًا شرعيًا. لا يحسب تلقائيًا الحالات غير المنتظمة أو النفاس أو الاستحاضة؛ راجعي الرصيد يدويًا عند الحاجة.</small>
+            </div>
+            <div class="field full info-box"><strong>كيف نبدأ الرصيد؟</strong><span>سننشئ رصيدًا افتراضيًا من بداية الفترة المقدّرة حتى اليوم. للمرأة، تُستبعد أيام الحيض المقدّرة أولًا من أيام الفترة، ثم يُحسب رصيد كل صلاة من الأيام الباقية. لا يعني هذا أننا نحكم بأنك لم تصلِّ؛ إنه رقم بداية تقديري قابل للتعديل. أضف أدناه الصلوات التي تتذكر أنك أديتها، وسيخصمها التطبيق.</span></div>
+            <div class="field full"><span>صلوات تتذكر أنك أديتها سابقًا (أدخل عدد كل صلاة)</span></div>
+            <label class="field"><span>الفجر</span><input id="rememberFajr" type="number" min="0" value="0" inputmode="numeric" /></label>
+            <label class="field"><span>الظهر</span><input id="rememberDhuhr" type="number" min="0" value="0" inputmode="numeric" /></label>
+            <label class="field"><span>العصر</span><input id="rememberAsr" type="number" min="0" value="0" inputmode="numeric" /></label>
+            <label class="field"><span>المغرب</span><input id="rememberMaghrib" type="number" min="0" value="0" inputmode="numeric" /></label>
+            <label class="field full"><span>العشاء</span><input id="rememberIsha" type="number" min="0" value="0" inputmode="numeric" /></label>
+            <div class="field full info-box"><strong>تذكير</strong><span>الأرقام تقديرية للمتابعة الشخصية وليست فتوى أو إلزامًا شرعيًا. إذا أردت تعديل رصيد أي صلاة لاحقًا، يمكنك فعل ذلك من شاشة الرصيد.</span></div>
+            <button class="primary-button full" type="submit">أنشئ رصيد البداية</button>
           </form>
         </div>
         <div id="qadaDashboard" hidden>
@@ -69,6 +86,7 @@
             <div class="summary-line"><div><span class="eyebrow">المتبقي من القضاء</span><div class="big-number" id="qadaRemainingTotal">0</div><span class="muted">صلاة</span></div><div class="summary-done"><span>أنجزت</span><strong id="qadaDoneTotal">0</strong></div></div>
             <div class="progress-track thick"><span id="qadaProgressBar"></span></div>
             <div class="progress-bottom"><span id="qadaProgressLabel">0% مكتمل</span><button class="text-button" id="editQadaPlan">تعديل الخطة</button></div>
+            <p class="qada-method-note" id="qadaMethodNote"></p>
           </div>
           <div class="section-heading compact"><div><span class="eyebrow">كل صلاة على حدة</span><h2>رصيد القضاء</h2></div></div>
           <div id="qadaPrayerList" class="qada-prayer-list"></div>

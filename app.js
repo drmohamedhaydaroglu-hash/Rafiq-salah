@@ -73,30 +73,87 @@ function renderQada() {
   document.getElementById('qadaDoneTotal').textContent=fmt(done);
   document.getElementById('qadaProgressBar').style.width=`${pct}%`;
   document.getElementById('qadaProgressLabel').textContent=`${pct}% مكتمل`;
+  const methodNote=document.getElementById('qadaMethodNote');
+  if(data.qada.gender==='female') {
+    methodNote.textContent=`أساس تقديري: ${fmt(data.qada.totalDays||data.qada.days)} يومًا، استُبعد منها نحو ${fmt(data.qada.estimatedMensesDays||0)} يوم حيض (ما يعادل ${fmt(Number((data.qada.estimatedCycles||0).toFixed(1)))} دورة) وفق افتراض دورة ${fmt(data.qada.cycleLength||28)} يومًا ومدة حيض ${fmt(data.qada.periodLength||7)} أيام. الأيام الباقية هي أساس الرصيد لكل فرض قبل خصم ما أُدخل من صلوات سابقة. يمكنك تعديل الإعدادات أو الرصيد يدويًا.`;
+  } else {
+    methodNote.textContent=`أساس تقديري: ${fmt(data.qada.totalDays||data.qada.days)} يومًا من بداية الفترة المختارة؛ ويُستخدم العدد أساسًا لكل فرض قبل خصم الصلوات السابقة التي أدخلتها. هذا رصيد افتراضي قابل للتعديل، وليس حكمًا بأنك لم تصلِّ خلالها.`;
+  }
   document.getElementById('dailyGoalValue').textContent=fmt(data.goal);
   document.getElementById('qadaPrayerList').innerHTML=PRAYERS.map(p=>`<div class="qada-prayer-row"><div><strong>${p.name}</strong><small>المتبقي: ${fmt(data.qada.remaining[p.id]||0)} · المنجز: ${fmt(data.qada.done[p.id]||0)}</small></div><div class="qada-edit"><input type="number" min="0" step="1" value="${Math.max(0,Number(data.qada.remaining[p.id]||0))}" data-qada-input="${p.id}" aria-label="المتبقي من ${p.name}"/><button data-save-qada="${p.id}">حفظ</button></div></div>`).join('');
   document.getElementById('qadaQuickActions').innerHTML=PRAYERS.map(p=>`<button class="qada-quick" data-qada-add="${p.id}" ${Number(data.qada.remaining[p.id]||0)<=0?'disabled':''}><strong>${p.name}</strong><span>+ قضاء</span></button>`).join('');
   const todayCount=Number(data.qadaLog[todayKey()]?.total||0);
   document.getElementById('todayQadaProgress').textContent=`أنجزت ${fmt(todayCount)} من هدف اليوم (${fmt(data.goal)})`;
 }
+function getQadaStartDate() {
+  const birthStr=document.getElementById('birthDate').value;
+  const ageValue=document.getElementById('bulughAge').value;
+  if(!birthStr) return null;
+  const birth=new Date(`${birthStr}T12:00:00`);
+  const now=new Date(); now.setHours(12,0,0,0);
+  if(Number.isNaN(birth.getTime()) || birth>now) return null;
+  const pubertyAge=ageValue==='unknown'?15:Number(ageValue);
+  const start=new Date(birth); const originalDay=start.getDate(); start.setFullYear(start.getFullYear()+pubertyAge); if(start.getDate()!==originalDay) start.setDate(0);
+  if(start>now) return null;
+  return {birthStr,birth,now,pubertyAge,start};
+}
+function getQadaEstimate() {
+  const dates=getQadaStartDate();
+  if(!dates) return null;
+  const {birthStr,pubertyAge,start,now}=dates;
+  const startUtc=Date.UTC(start.getFullYear(),start.getMonth(),start.getDate());
+  const todayUtc=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate());
+  const totalDays=Math.max(0,Math.round((todayUtc-startUtc)/86400000)+1);
+  const gender=document.getElementById('qadaGender').value;
+  let cycleLength=null, periodLength=null, estimatedCycles=0, estimatedMensesDays=0;
+  if(gender==='female') {
+    cycleLength=Math.floor(Number(document.getElementById('cycleLength').value));
+    periodLength=Math.floor(Number(document.getElementById('periodLength').value));
+    if(!Number.isFinite(cycleLength)||cycleLength<15||cycleLength>90||!Number.isFinite(periodLength)||periodLength<1||periodLength>20||periodLength>cycleLength) return {invalidCycle:true};
+    // Proportional estimate: equivalent cycles over the period, without pretending to know exact cycle dates.
+    estimatedCycles=totalDays/cycleLength;
+    estimatedMensesDays=Math.min(totalDays,Math.round(estimatedCycles*periodLength));
+  }
+  return {
+    birthDate:birthStr,pubertyAge,gender,
+    startDate:`${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`,
+    totalDays,cycleLength,periodLength,estimatedCycles,estimatedMensesDays,
+    eligibleDays:Math.max(0,totalDays-estimatedMensesDays)
+  };
+}
+function updateQadaEstimatePreview() {
+  const female=document.getElementById('qadaGender').value==='female';
+  document.getElementById('femaleCycleFields').hidden=!female;
+  const preview=document.getElementById('cycleEstimatePreview');
+  if(!female){preview.textContent='';return;}
+  const estimate=getQadaEstimate();
+  if(!estimate){preview.textContent='أدخلي تاريخ الميلاد والعمر التقريبي عند البلوغ لعرض التقدير.';return;}
+  if(estimate.invalidCycle){preview.textContent='تحققي من الأرقام: طول الدورة 15–90 يومًا، ومدة الحيض 1–20 يومًا ولا تتجاوز طول الدورة.';return;}
+  preview.textContent=`التقدير الحالي: ما يعادل نحو ${fmt(Number(estimate.estimatedCycles.toFixed(1)))} دورة؛ أي قرابة ${fmt(estimate.estimatedMensesDays)} يوم حيض من أصل ${fmt(estimate.totalDays)} يوم. الأيام الباقية في أساس الحساب: ${fmt(estimate.eligibleDays)}.`;
+}
 function createQadaPlan(e) {
   e.preventDefault();
-  const dateStr=document.getElementById('bulughDate').value;
-  if (!dateStr) return showToast('أدخل تاريخ بداية التكليف أولًا');
-  const start=new Date(`${dateStr}T12:00:00`); const now=new Date(); now.setHours(12,0,0,0);
-  if (Number.isNaN(start.getTime()) || start>now) return showToast('تحقق من تاريخ بداية التكليف');
-  const days=Math.max(0,Math.floor((now-start)/86400000)+1);
-  const excused=Math.min(days,Math.max(0,Number(document.getElementById('excusedDays').value)||0));
-  const fullDays=Math.min(days-excused,Math.max(0,Number(document.getElementById('fullPrayerDays').value)||0));
-  const estimate=Math.max(0,days-excused-fullDays);
-  const remaining={}; const done={};
+  const estimate=getQadaEstimate();
+  if(!estimate) return showToast('تحقّق من تاريخ الميلاد وعمر البلوغ');
+  if(estimate.invalidCycle) return showToast('تحقّقي من طول الدورة ومدة الحيض');
+  const remembered={};
+  PRAYERS.forEach(p=>{remembered[p.id]=Math.max(0,Math.floor(Number(document.getElementById(`remember${p.id[0].toUpperCase()+p.id.slice(1)}`).value)||0));});
+  const remaining={},done={};
   PRAYERS.forEach(p=>{
-    const alreadyDone = data.qada ? Math.max(0, Number(data.qada.done[p.id] || 0)) : 0;
-    done[p.id] = alreadyDone;
-    remaining[p.id] = Math.max(0, estimate - alreadyDone);
+    const rememberedCount=remembered[p.id];
+    const previousTotalDone=data.qada?Math.max(0,Number(data.qada.done[p.id]||0)):0;
+    const previousRemembered=data.qada?Math.max(0,Number(data.qada.remembered?.[p.id]||0)):0;
+    const previouslyQadaCompleted=Math.max(0,previousTotalDone-previousRemembered);
+    done[p.id]=rememberedCount+previouslyQadaCompleted;
+    remaining[p.id]=Math.max(0,estimate.eligibleDays-done[p.id]);
   });
-  data.qada={startDate:dateStr,days,excusedDays:excused,fullPrayerDays:fullDays,remaining,done,createdAt:data.qada?.createdAt || new Date().toISOString()}; saveData(); renderQada(); renderHome(); showToast(`تم تحديث التقدير: ${fmt(estimate)} لكل صلاة قبل احتساب المنجز`);
+  data.qada={
+    ...estimate,days:estimate.eligibleDays,remembered,remaining,done,
+    createdAt:data.qada?.createdAt||new Date().toISOString()
+  };
+  saveData();renderQada();renderHome();showToast(`تم إنشاء رصيد بداية تقديري لمدة ${fmt(estimate.eligibleDays)} يومًا`);
 }
+
 function addQada(prayerId) {
   if (!data.qada) return;
   if (Number(data.qada.remaining[prayerId]||0)<=0) return showToast('لا يوجد متبقٍ لهذه الصلاة');
@@ -253,7 +310,19 @@ document.addEventListener('click',e=>{
   const tab=e.target.closest('#adhkarTabs button');if(tab){currentAdhkarKind=tab.dataset.kind;renderAdhkar();return;}
 });
 document.getElementById('qadaSetupForm').addEventListener('submit',createQadaPlan);
-document.getElementById('editQadaPlan').addEventListener('click',()=>{if(!confirm('إعادة الحساب ستستبدل أرصدة القضاء الحالية وسجل الإنجاز المرتبط بها. هل تريد المتابعة؟'))return;document.getElementById('qadaSetup').hidden=false;document.getElementById('qadaDashboard').hidden=true;document.getElementById('bulughDate').value=data.qada.startDate;document.getElementById('excusedDays').value=data.qada.excusedDays;document.getElementById('fullPrayerDays').value=data.qada.fullPrayerDays;});
+['birthDate','bulughAge','qadaGender','cycleLength','periodLength'].forEach(id=>document.getElementById(id).addEventListener('input',updateQadaEstimatePreview));
+['birthDate','bulughAge','qadaGender','cycleLength','periodLength'].forEach(id=>document.getElementById(id).addEventListener('change',updateQadaEstimatePreview));
+document.getElementById('editQadaPlan').addEventListener('click',()=>{
+  if(!confirm('إعادة حساب رصيد البداية قد تغيّر الأرقام الحالية. هل تريد تعديل بيانات البداية؟'))return;
+  document.getElementById('qadaSetup').hidden=false;document.getElementById('qadaDashboard').hidden=true;
+  document.getElementById('birthDate').value=data.qada.birthDate||'';
+  document.getElementById('bulughAge').value=String(data.qada.pubertyAge||13);
+  document.getElementById('qadaGender').value=data.qada.gender||'male';
+  document.getElementById('cycleLength').value=String(data.qada.cycleLength||28);
+  document.getElementById('periodLength').value=String(data.qada.periodLength||7);
+  PRAYERS.forEach(p=>{const input=document.getElementById(`remember${p.id[0].toUpperCase()+p.id.slice(1)}`);if(input)input.value=String(data.qada.remembered?.[p.id]||0);});
+  updateQadaEstimatePreview();
+});
 document.getElementById('goalMinus').addEventListener('click',()=>{data.goal=Math.max(1,data.goal-1);saveData();renderQada();});
 document.getElementById('goalPlus').addEventListener('click',()=>{data.goal=Math.min(100,data.goal+1);saveData();renderQada();});
 document.getElementById('resetQada').addEventListener('click',()=>{if(confirm('هل تريد حذف خطة القضاء وسجل إنجازها؟ لا يمكن التراجع عن ذلك.')){data.qada=null;data.qadaLog={};saveData();renderQada();renderHome();showToast('تمت إعادة ضبط خطة القضاء');}});
@@ -267,6 +336,6 @@ document.getElementById('settingsShortcut').addEventListener('click',()=>setView
 document.getElementById('exportData').addEventListener('click',exportBackup);
 document.getElementById('importData').addEventListener('change',e=>{if(e.target.files[0])importBackup(e.target.files[0]);e.target.value='';});
 
-renderHome();renderDailyPrayers();renderQada();renderAdhkar();
+renderHome();renderDailyPrayers();renderQada();renderAdhkar();updateQadaEstimatePreview();
 loadPrayerTimes();
 if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('service-worker.js').catch(()=>{});
